@@ -1,6 +1,6 @@
 """
 CNN classification model for 12-class histopathology images.
-Backbone: EfficientNet-B0 (timm) with Focal Loss + CosineAnnealingLR.
+Backbone: ConvNeXt-Small (timm) with Focal Loss + CosineAnnealingLR.
 """
 
 import torch
@@ -66,42 +66,45 @@ class HistoCNNClassifier(pl.LightningModule):
     Transfer-learning CNN for 12-class H&E biopsy classification.
 
     Args:
-        num_classes:   number of output classes (12)
-        lr:            initial learning rate
-        weight_decay:  L2 regularisation
-        class_weights: 1-D tensor of per-class inverse-frequency weights
-                       (passed in from DataModule after setup)
-        focal_gamma:   gamma parameter for Focal Loss
-        t_max:         CosineAnnealingLR period (in epochs)
+        num_classes:    number of output classes (12)
+        lr:             initial learning rate
+        weight_decay:   L2 regularisation
+        class_weights:  1-D tensor of per-class inverse-frequency weights
+                        (passed in from DataModule after setup)
+        focal_gamma:    gamma parameter for Focal Loss
+        t_max:          CosineAnnealingLR period (in epochs)
+        drop_path_rate: stochastic depth rate for ConvNeXt regularisation
     """
 
     def __init__(
         self,
         num_classes: int = 12,
-        lr: float = 1e-3,
+        lr: float = 3e-4,
         weight_decay: float = 1e-4,
         class_weights: torch.Tensor | None = None,
         focal_gamma: float = 2.0,
         t_max: int = 30,
+        drop_path_rate: float = 0.2,
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["class_weights"])
 
         # ---- backbone ----
         self.backbone = timm.create_model(
-            "efficientnet_b0",
+            "convnext_small",
             pretrained=True,
             num_classes=0,           # remove classifier head
             global_pool="avg",
+            drop_path_rate=drop_path_rate,
         )
-        in_features = self.backbone.num_features  # 1280 for eff-b0
+        in_features = self.backbone.num_features  # 768 for convnext_small
 
         # ---- custom head ----
         self.classifier = nn.Sequential(
             nn.Dropout(p=0.4),
             nn.Linear(in_features, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(inplace=True),
+            nn.LayerNorm(512),       # LayerNorm matches ConvNeXt internal style
+            nn.GELU(),               # GELU matches ConvNeXt internal style
             nn.Dropout(p=0.3),
             nn.Linear(512, num_classes),
         )

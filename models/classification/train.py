@@ -2,7 +2,7 @@
 Training script for histopathology classification.
 
 Usage:
-    python models/classification/train.py --data_root . --epochs 50 --batch_size 32
+    python models/classification/train.py --data_root . --epochs 50 --batch_size 32 --lr 3e-4
 """
 
 import argparse
@@ -21,7 +21,7 @@ def parse_args():
                    help="Root dir that contains classification/train/{0..11}/")
     p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--batch_size", type=int, default=32)
-    p.add_argument("--lr", type=float, default=1e-3)
+    p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--image_size", type=int, default=256)
     p.add_argument("--num_workers", type=int, default=4)
     p.add_argument("--val_split", type=float, default=0.15)
@@ -29,6 +29,8 @@ def parse_args():
                    help="Where to save the best model checkpoint")
     p.add_argument("--focal_gamma", type=float, default=2.0)
     p.add_argument("--weight_decay", type=float, default=1e-4)
+    p.add_argument("--drop_path_rate", type=float, default=0.2,
+                   help="Stochastic depth rate for ConvNeXt (default: 0.2)")
     p.add_argument("--precision", type=str, default="16-mixed",
                    help="Trainer precision: '32', '16-mixed', 'bf16-mixed'")
     return p.parse_args()
@@ -55,6 +57,7 @@ def main():
         class_weights=dm.class_weights,
         focal_gamma=args.focal_gamma,
         t_max=args.epochs,
+        drop_path_rate=args.drop_path_rate,
     )
 
     # --------------------------------------------------------------- callbacks

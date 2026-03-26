@@ -1,7 +1,7 @@
 """
 Inference script for histopathology classification.
 
-Reads PNG images from an input directory, runs the saved CNN model
+Reads PNG images from an input directory, runs the saved ConvNeXt-Small model
 (with optional Test-Time Augmentation), and writes predictions to
 21_test_ground_truth.xlsx with columns: Image_ID, Label.
 
