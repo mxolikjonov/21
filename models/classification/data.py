@@ -16,6 +16,7 @@ from monai.transforms import (
     RandFlip,
     RandZoom,
     RandGaussianNoise,
+    RandGaussianSmooth,
     ScaleIntensity,
     ToTensor,
     Resize,
@@ -24,6 +25,24 @@ from monai.transforms import (
     RandAdjustContrast,
 )
 from torchvision import transforms as T
+from torchvision.transforms.functional import adjust_hue, adjust_saturation
+
+
+class _RandHueSaturation:
+    """Random hue + saturation jitter for CHW float32 arrays in [0, 1]."""
+
+    def __init__(self, hue_limit=0.05, sat_factor=(0.8, 1.2), prob=0.4):
+        self.hue_limit = hue_limit
+        self.sat_low, self.sat_high = sat_factor
+        self.prob = prob
+
+    def __call__(self, img):
+        if np.random.random() >= self.prob:
+            return img
+        t = (img.detach().clone() if isinstance(img, torch.Tensor) else torch.tensor(img)).clamp(0.0, 1.0)
+        t = adjust_hue(t, float(np.random.uniform(-self.hue_limit, self.hue_limit)))
+        t = adjust_saturation(t, float(np.random.uniform(self.sat_low, self.sat_high)))
+        return t.numpy()
 
 
 # ---------------------------------------------------------------------------
@@ -103,8 +122,10 @@ def train_transforms(image_size: int = 256) -> Compose:
             shear_range=(0.1,),
             padding_mode="reflection",
         ),
-        RandAdjustContrast(prob=0.3, gamma=(0.7, 1.5)),
+        RandAdjustContrast(prob=0.4, gamma=(0.65, 1.6)),
+        _RandHueSaturation(hue_limit=0.05, sat_factor=(0.75, 1.25), prob=0.4),
         RandGaussianNoise(prob=0.2, mean=0.0, std=0.05),
+        RandGaussianSmooth(sigma_x=(0.5, 1.0), prob=0.15),
         NormalizeIntensity(nonzero=False, channel_wise=True),
         ToTensor(),
     ])

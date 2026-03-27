@@ -1,6 +1,6 @@
 """
 CNN classification model for 12-class histopathology images.
-Backbone: EfficientNet-B0 (timm) with Focal Loss + CosineAnnealingLR.
+Backbone: ConvNeXt-Small (timm) with Focal Loss + CosineAnnealingLR.
 """
 
 import torch
@@ -9,6 +9,10 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 import timm
 from torchmetrics import Accuracy
+
+# Pairs that are systematically confused (from confusion matrix analysis).
+# The confusion penalty loss discourages probability mass on these wrong targets.
+_CONFUSED_PAIRS = [(4, 9), (9, 4), (10, 11), (11, 10)]
 
 
 # ---------------------------------------------------------------------------
@@ -66,42 +70,45 @@ class HistoCNNClassifier(pl.LightningModule):
     Transfer-learning CNN for 12-class H&E biopsy classification.
 
     Args:
-        num_classes:   number of output classes (12)
-        lr:            initial learning rate
-        weight_decay:  L2 regularisation
-        class_weights: 1-D tensor of per-class inverse-frequency weights
-                       (passed in from DataModule after setup)
-        focal_gamma:   gamma parameter for Focal Loss
-        t_max:         CosineAnnealingLR period (in epochs)
+        num_classes:    number of output classes (12)
+        lr:             initial learning rate
+        weight_decay:   L2 regularisation
+        class_weights:  1-D tensor of per-class inverse-frequency weights
+                        (passed in from DataModule after setup)
+        focal_gamma:    gamma parameter for Focal Loss
+        t_max:          CosineAnnealingLR period (in epochs)
+        drop_path_rate: stochastic depth rate for ConvNeXt regularisation
     """
 
     def __init__(
         self,
         num_classes: int = 12,
-        lr: float = 1e-3,
+        lr: float = 3e-4,
         weight_decay: float = 1e-4,
         class_weights: torch.Tensor | None = None,
         focal_gamma: float = 2.0,
         t_max: int = 30,
+        drop_path_rate: float = 0.2,
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["class_weights"])
 
         # ---- backbone ----
         self.backbone = timm.create_model(
-            "efficientnet_b0",
+            "convnext_small",
             pretrained=True,
             num_classes=0,           # remove classifier head
             global_pool="avg",
+            drop_path_rate=drop_path_rate,
         )
-        in_features = self.backbone.num_features  # 1280 for eff-b0
+        in_features = self.backbone.num_features  # 768 for convnext_small
 
         # ---- custom head ----
         self.classifier = nn.Sequential(
             nn.Dropout(p=0.4),
             nn.Linear(in_features, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(inplace=True),
+            nn.LayerNorm(512),       # LayerNorm matches ConvNeXt internal style
+            nn.GELU(),               # GELU matches ConvNeXt internal style
             nn.Dropout(p=0.3),
             nn.Linear(512, num_classes),
         )
@@ -132,12 +139,31 @@ class HistoCNNClassifier(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        logits = self(x)
-        loss = self.criterion(logits, y)
-        preds = logits.argmax(dim=-1)
 
+        # MixUp: blend pairs of samples to smooth decision boundaries
+        alpha = 0.2
+        lam = float(torch.distributions.Beta(alpha, alpha).sample())
+        idx = torch.randperm(x.size(0), device=x.device)
+        x_mix = lam * x + (1.0 - lam) * x[idx]
+        y_b = y[idx]
+
+        logits = self(x_mix)
+
+        # Mixed focal loss
+        loss = lam * self.criterion(logits, y) + (1.0 - lam) * self.criterion(logits, y_b)
+
+        # Confusion penalty: penalise probability mass on known confused targets
+        probs = torch.softmax(logits, dim=-1)
+        conf_penalty = logits.new_zeros(1).squeeze()
+        for src, dst in _CONFUSED_PAIRS:
+            mask = (y == src)
+            if mask.any():
+                conf_penalty = conf_penalty + probs[mask, dst].mean()
+        loss = loss + 0.05 * conf_penalty
+
+        preds = logits.argmax(dim=-1)
         self.train_acc(preds, y)
-        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         self.log("train_accuracy", self.train_acc, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
@@ -148,7 +174,7 @@ class HistoCNNClassifier(pl.LightningModule):
         preds = logits.argmax(dim=-1)
 
         self.val_acc(preds, y)
-        self.log("val_loss", loss, on_epoch=True, prog_bar=True)
+        self.log("val_loss", loss, on_epoch=True, prog_bar=True, sync_dist=True)
         self.log("val_accuracy", self.val_acc, on_epoch=True, prog_bar=True)
 
     # ------------------------------------------------------------------
@@ -161,9 +187,10 @@ class HistoCNNClassifier(pl.LightningModule):
             lr=self.hparams.lr,
             weight_decay=self.hparams.weight_decay,
         )
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer,
-            T_max=self.hparams.t_max,
+            T_0=max(1, self.hparams.t_max // 2),
+            T_mult=1,
             eta_min=1e-6,
         )
         return {
