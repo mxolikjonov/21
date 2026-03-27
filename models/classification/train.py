@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from data import ClassificationDataModule
 from model import HistoCNNClassifier
@@ -27,7 +28,7 @@ def parse_args():
     p.add_argument("--val_split", type=float, default=0.15)
     p.add_argument("--checkpoint_dir", type=str, default="models/classification",
                    help="Where to save the best model checkpoint")
-    p.add_argument("--focal_gamma", type=float, default=2.0)
+    p.add_argument("--focal_gamma", type=float, default=2.5)
     p.add_argument("--weight_decay", type=float, default=5e-3)
     p.add_argument("--drop_path_rate", type=float, default=0.3,
                    help="Stochastic depth rate for ConvNeXt (default: 0.2)")
@@ -83,9 +84,16 @@ def main():
     lr_monitor = LearningRateMonitor(logging_interval="epoch")
 
     # --------------------------------------------------------------- trainer
+    logger = TensorBoardLogger(
+        save_dir="logs/classification",
+        name="run",
+        version="auto",          # auto → version_0, version_1, version_2 …
+    )
+
     trainer = pl.Trainer(
         max_epochs=args.epochs,
         callbacks=[checkpoint_cb, early_stop_cb, lr_monitor],
+        logger=logger,
         precision=args.precision,
         log_every_n_steps=10,
         enable_progress_bar=True,
