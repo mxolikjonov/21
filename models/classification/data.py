@@ -16,6 +16,7 @@ from monai.transforms import (
     RandFlip,
     RandZoom,
     RandGaussianNoise,
+    RandGaussianSmooth,
     ScaleIntensity,
     ToTensor,
     Resize,
@@ -105,6 +106,7 @@ def train_transforms(image_size: int = 256) -> Compose:
         ),
         RandAdjustContrast(prob=0.3, gamma=(0.7, 1.5)),
         RandGaussianNoise(prob=0.2, mean=0.0, std=0.05),
+        RandGaussianSmooth(sigma_x=(0.5, 1.0), prob=0.15),
         NormalizeIntensity(nonzero=False, channel_wise=True),
         ToTensor(),
     ])

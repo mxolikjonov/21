@@ -101,11 +101,11 @@ class HistoCNNClassifier(pl.LightningModule):
 
         # ---- custom head ----
         self.classifier = nn.Sequential(
-            nn.Dropout(p=0.4),
+            nn.Dropout(p=0.5),
             nn.Linear(in_features, 512),
             nn.LayerNorm(512),       # LayerNorm matches ConvNeXt internal style
             nn.GELU(),               # GELU matches ConvNeXt internal style
-            nn.Dropout(p=0.3),
+            nn.Dropout(p=0.4),
             nn.Linear(512, num_classes),
         )
 
@@ -164,9 +164,10 @@ class HistoCNNClassifier(pl.LightningModule):
             lr=self.hparams.lr,
             weight_decay=self.hparams.weight_decay,
         )
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer,
-            T_max=self.hparams.t_max,
+            T_0=max(1, self.hparams.t_max // 2),
+            T_mult=1,
             eta_min=1e-6,
         )
         return {
