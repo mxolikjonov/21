@@ -11,6 +11,7 @@ from pathlib import Path
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.strategies import DDPStrategy
 
 from data import ClassificationDataModule
 from model import HistoCNNClassifier
@@ -96,10 +97,18 @@ def main():
         version="auto",          # auto → version_0, version_1, version_2 …
     )
 
+    # DDPStrategy fix for ConvNeXt: depthwise conv gradients are non-contiguous,
+    # which causes incorrect gradient accumulation in default DDP bucketing.
+    ddp = DDPStrategy(
+        gradient_as_bucket_view=True,   # ensures contiguous gradient layout
+        find_unused_parameters=False,   # ConvNeXt has no unused params
+    )
+
     trainer = pl.Trainer(
         max_epochs=args.epochs,
         callbacks=[checkpoint_cb, early_stop_cb, lr_monitor],
         logger=logger,
+        strategy=ddp,
         precision=args.precision,
         log_every_n_steps=10,
         enable_progress_bar=True,

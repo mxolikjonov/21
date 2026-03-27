@@ -1,0 +1,6 @@
+num_classes: 12
+lr: 0.001
+weight_decay: 0.005
+focal_gamma: 2.0
+t_max: 50
+drop_path_rate: 0.3
