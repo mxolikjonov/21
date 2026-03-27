@@ -101,11 +101,11 @@ class HistoCNNClassifier(pl.LightningModule):
 
         # ---- custom head ----
         self.classifier = nn.Sequential(
-            nn.Dropout(p=0.5),
+            nn.Dropout(p=0.4),
             nn.Linear(in_features, 512),
             nn.LayerNorm(512),       # LayerNorm matches ConvNeXt internal style
             nn.GELU(),               # GELU matches ConvNeXt internal style
-            nn.Dropout(p=0.4),
+            nn.Dropout(p=0.3),
             nn.Linear(512, num_classes),
         )
 
@@ -141,7 +141,7 @@ class HistoCNNClassifier(pl.LightningModule):
 
         self.train_acc(preds, y)
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
-        self.log("train_accuracy", self.train_acc, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("train_accuracy", self.train_acc, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -152,7 +152,7 @@ class HistoCNNClassifier(pl.LightningModule):
 
         self.val_acc(preds, y)
         self.log("val_loss", loss, on_epoch=True, prog_bar=True, sync_dist=True)
-        self.log("val_accuracy", self.val_acc, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("val_accuracy", self.val_acc, on_epoch=True, prog_bar=True)
 
     # ------------------------------------------------------------------
     # Optimiser & scheduler

@@ -22,16 +22,17 @@ def parse_args():
                    help="Root dir that contains classification/train/{0..11}/")
     p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--batch_size", type=int, default=32)
-    p.add_argument("--lr", type=float, default=3e-4)
+    p.add_argument("--lr", type=float, default=1e-4,
+                   help="LR per GPU. With 2 GPUs effective LR = lr * num_gpus (auto-scaled in trainer)")
     p.add_argument("--image_size", type=int, default=256)
     p.add_argument("--num_workers", type=int, default=4)
     p.add_argument("--val_split", type=float, default=0.15)
     p.add_argument("--checkpoint_dir", type=str, default="models/classification",
                    help="Where to save the best model checkpoint")
-    p.add_argument("--focal_gamma", type=float, default=2.5)
-    p.add_argument("--weight_decay", type=float, default=1e-3)
-    p.add_argument("--drop_path_rate", type=float, default=0.3,
-                   help="Stochastic depth rate for ConvNeXt (default: 0.2)")
+    p.add_argument("--focal_gamma", type=float, default=2.0)
+    p.add_argument("--weight_decay", type=float, default=1e-4)
+    p.add_argument("--drop_path_rate", type=float, default=0.2,
+                   help="Stochastic depth rate for ConvNeXt")
     p.add_argument("--precision", type=str, default="16-mixed",
                    help="Trainer precision: '32', '16-mixed', 'bf16-mixed'")
     return p.parse_args()
@@ -50,10 +51,15 @@ def main():
     )
     dm.setup()
 
+    # Scale LR linearly with number of GPUs (linear scaling rule)
+    import torch
+    num_gpus = max(1, torch.cuda.device_count())
+    effective_lr = args.lr * num_gpus
+
     # ----------------------------------------------------------------- model
     model = HistoCNNClassifier(
         num_classes=12,
-        lr=args.lr,
+        lr=effective_lr,
         weight_decay=args.weight_decay,
         class_weights=dm.class_weights,
         focal_gamma=args.focal_gamma,
