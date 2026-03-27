@@ -36,6 +36,8 @@ def parse_args():
                    help="Stochastic depth rate for ConvNeXt")
     p.add_argument("--precision", type=str, default="16-mixed",
                    help="Trainer precision: '32', '16-mixed', 'bf16-mixed'")
+    p.add_argument("--resume_from", type=str, default=None,
+                   help="Path to .ckpt file to resume/fine-tune from")
     return p.parse_args()
 
 
@@ -114,7 +116,7 @@ def main():
         enable_progress_bar=True,
     )
 
-    trainer.fit(model, datamodule=dm)
+    trainer.fit(model, datamodule=dm, ckpt_path=args.resume_from)
 
     print(f"\nBest model saved to: {checkpoint_cb.best_model_path}")
     print(f"Best val_accuracy  : {checkpoint_cb.best_model_score:.4f}")
