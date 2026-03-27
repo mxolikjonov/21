@@ -39,7 +39,7 @@ class _RandHueSaturation:
     def __call__(self, img):
         if np.random.random() >= self.prob:
             return img
-        t = torch.tensor(img).clamp(0.0, 1.0)
+        t = (img.detach().clone() if isinstance(img, torch.Tensor) else torch.tensor(img)).clamp(0.0, 1.0)
         t = adjust_hue(t, float(np.random.uniform(-self.hue_limit, self.hue_limit)))
         t = adjust_saturation(t, float(np.random.uniform(self.sat_low, self.sat_high)))
         return t.numpy()
