@@ -113,7 +113,36 @@ This generates `21_test_ground_truth.xlsx` with columns:
 
 ---
 
-## 4. Troubleshooting
+## 4. Evaluate the Model (Validation Metrics)
+
+Run on the same 15% held-out validation split used during training:
+
+```bash
+python models/classification/evaluate.py \
+    --data_root . \
+    --model_path models/classification/best_classification_model.ckpt
+```
+
+Output includes:
+- Overall accuracy and F1 (macro + weighted)
+- Per-class precision, recall, F1
+- Confusion matrix
+- Per-class accuracy sorted worst → best
+
+### Evaluation arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--data_root` | `.` | Root dir with `classification/train/` |
+| `--model_path` | required | Path to `.ckpt` checkpoint |
+| `--batch_size` | `32` | Batch size for inference |
+| `--image_size` | `256` | Must match training size |
+| `--val_split` | `0.15` | Must match training val_split |
+| `--device` | `auto` | `cpu`, `cuda`, `mps`, or `auto` |
+
+---
+
+## 5. Troubleshooting
 
 | Problem | Solution |
 |---------|----------|

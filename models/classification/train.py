@@ -83,7 +83,7 @@ def main():
 
     early_stop_cb = EarlyStopping(
         monitor="val_accuracy",
-        patience=10,
+        patience=15,
         mode="max",
         verbose=True,
     )

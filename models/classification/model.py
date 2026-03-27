@@ -10,6 +10,10 @@ import pytorch_lightning as pl
 import timm
 from torchmetrics import Accuracy
 
+# Pairs that are systematically confused (from confusion matrix analysis).
+# The confusion penalty loss discourages probability mass on these wrong targets.
+_CONFUSED_PAIRS = [(4, 9), (9, 4), (10, 11), (11, 10)]
+
 
 # ---------------------------------------------------------------------------
 # Focal Loss
@@ -135,10 +139,29 @@ class HistoCNNClassifier(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        logits = self(x)
-        loss = self.criterion(logits, y)
-        preds = logits.argmax(dim=-1)
 
+        # MixUp: blend pairs of samples to smooth decision boundaries
+        alpha = 0.2
+        lam = float(torch.distributions.Beta(alpha, alpha).sample())
+        idx = torch.randperm(x.size(0), device=x.device)
+        x_mix = lam * x + (1.0 - lam) * x[idx]
+        y_b = y[idx]
+
+        logits = self(x_mix)
+
+        # Mixed focal loss
+        loss = lam * self.criterion(logits, y) + (1.0 - lam) * self.criterion(logits, y_b)
+
+        # Confusion penalty: penalise probability mass on known confused targets
+        probs = torch.softmax(logits, dim=-1)
+        conf_penalty = logits.new_zeros(1).squeeze()
+        for src, dst in _CONFUSED_PAIRS:
+            mask = (y == src)
+            if mask.any():
+                conf_penalty = conf_penalty + probs[mask, dst].mean()
+        loss = loss + 0.05 * conf_penalty
+
+        preds = logits.argmax(dim=-1)
         self.train_acc(preds, y)
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         self.log("train_accuracy", self.train_acc, on_step=False, on_epoch=True, prog_bar=True)
