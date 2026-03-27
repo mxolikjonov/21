@@ -29,7 +29,7 @@ def parse_args():
     p.add_argument("--checkpoint_dir", type=str, default="models/classification",
                    help="Where to save the best model checkpoint")
     p.add_argument("--focal_gamma", type=float, default=2.5)
-    p.add_argument("--weight_decay", type=float, default=5e-3)
+    p.add_argument("--weight_decay", type=float, default=1e-3)
     p.add_argument("--drop_path_rate", type=float, default=0.3,
                    help="Stochastic depth rate for ConvNeXt (default: 0.2)")
     p.add_argument("--precision", type=str, default="16-mixed",

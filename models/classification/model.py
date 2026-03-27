@@ -140,8 +140,8 @@ class HistoCNNClassifier(pl.LightningModule):
         preds = logits.argmax(dim=-1)
 
         self.train_acc(preds, y)
-        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("train_accuracy", self.train_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("train_accuracy", self.train_acc, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -151,8 +151,8 @@ class HistoCNNClassifier(pl.LightningModule):
         preds = logits.argmax(dim=-1)
 
         self.val_acc(preds, y)
-        self.log("val_loss", loss, on_epoch=True, prog_bar=True)
-        self.log("val_accuracy", self.val_acc, on_epoch=True, prog_bar=True)
+        self.log("val_loss", loss, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("val_accuracy", self.val_acc, on_epoch=True, prog_bar=True, sync_dist=True)
 
     # ------------------------------------------------------------------
     # Optimiser & scheduler

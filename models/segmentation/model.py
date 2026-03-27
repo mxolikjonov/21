@@ -95,8 +95,8 @@ class HistoSegmenter(pl.LightningModule):
         loss = self.criterion(logits, masks)
         preds = (torch.sigmoid(logits) > 0.5).long()
         self.train_dice(preds, masks.long())
-        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("train_dice", self.train_dice, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("train_dice", self.train_dice, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
 
     def validation_step(self, batch, batch_idx):  # noqa: ARG002
@@ -106,9 +106,9 @@ class HistoSegmenter(pl.LightningModule):
         preds = (torch.sigmoid(logits) > 0.5).long()
         self.val_dice(preds, masks.long())
         self.val_iou(preds, masks.long())
-        self.log("val_loss", loss, on_epoch=True, prog_bar=True)
-        self.log("val_dice", self.val_dice, on_epoch=True, prog_bar=True)
-        self.log("val_iou", self.val_iou, on_epoch=True, prog_bar=True)
+        self.log("val_loss", loss, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("val_dice", self.val_dice, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("val_iou", self.val_iou, on_epoch=True, prog_bar=True, sync_dist=True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(
